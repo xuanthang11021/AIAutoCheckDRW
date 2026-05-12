@@ -1,0 +1,1400 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>PDF Difference Highlighter + OCR (CVN Modified)</title>
+    <style>
+      :root {
+        --accent: #1a73e8;
+        --bg: #f6f8fb;
+        --border: #dce3ef;
+        --danger: #e53935;
+        --ok: #1e8e3e;
+      }
+      body {
+        font-family:
+          "Segoe UI",
+          system-ui,
+          -apple-system,
+          sans-serif;
+        background: var(--bg);
+        color: #222;
+        margin: 0;
+        line-height: 1.6;
+      }
+      header {
+        background: white;
+        border-bottom: 1px solid var(--border);
+        padding: 16px 20px;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+      header h1 {
+        margin: 0 0 4px;
+        font-size: 20px;
+      }
+      header p {
+        margin: 0;
+        color: #555;
+        font-size: 13px;
+      }
+      main {
+        padding: 20px;
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+      .panel {
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 16px;
+        margin-bottom: 20px;
+      }
+      .panel h2 {
+        margin: 0 0 10px;
+        font-size: 18px;
+      }
+      .grid {
+        display: grid;
+        gap: 12px;
+      }
+      @media (min-width: 900px) {
+        .grid.cols-2 {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      .dropzone {
+        border: 2px dashed var(--border);
+        border-radius: 10px;
+        padding: 16px;
+        background: #fafcff;
+        text-align: center;
+        transition:
+          border-color 0.2s,
+          background 0.2s;
+      }
+      .dropzone.dragover {
+        border-color: var(--accent);
+        background: #eef4ff;
+      }
+      .dropzone .label {
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 6px;
+      }
+      .dropzone .hint {
+        font-size: 12px;
+        color: #666;
+        margin-top: 6px;
+      }
+      .btn {
+        appearance: none;
+        border: 1px solid var(--border);
+        background: #fff;
+        color: #222;
+        padding: 8px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+        transition:
+          background 0.2s,
+          box-shadow 0.2s;
+      }
+      .btn:hover:not(:disabled) {
+        background: #f2f6ff;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+      }
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .btn.primary {
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
+      }
+      .btn.danger {
+        background: var(--danger);
+        color: #fff;
+        border-color: var(--danger);
+      }
+      .btn.success {
+        background: var(--ok);
+        color: #fff;
+        border-color: var(--ok);
+      }
+      .btn.small {
+        padding: 6px 10px;
+        font-size: 12px;
+      }
+      /* ✅ THÊM STYLE CHO NÚT EXCEL */
+      .btn.excel {
+        background: #217346;
+        color: #fff;
+        border-color: #217346;
+      }
+      .btn.excel:hover:not(:disabled) {
+        background: #1a5c37;
+      }
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        margin-top: 8px;
+      }
+      .control {
+        background: #f7f9fc;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 8px 10px;
+      }
+      .control label {
+        font-size: 12px;
+        color: #555;
+        display: block;
+        margin-bottom: 4px;
+      }
+      .control input[type="range"] {
+        width: 240px;
+      }
+      .status {
+        font-size: 12px;
+        color: #555;
+        margin-top: 6px;
+      }
+      .gallery {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      }
+      .card {
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      .card header {
+        background: #fff;
+        border-bottom: 1px solid var(--border);
+        padding: 8px 10px;
+        position: static;
+      }
+      .card header h3 {
+        margin: 0;
+        font-size: 14px;
+      }
+      .card .canvas-wrap {
+        padding: 8px;
+        text-align: center;
+        background: #fbfdff;
+      }
+      .card canvas,
+      .card img {
+        max-width: 100%;
+        height: auto;
+        cursor: zoom-in;
+        transition: transform 0.2s;
+      }
+      .card footer {
+        padding: 8px 10px;
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        background: #fff;
+        border-top: 1px solid var(--border);
+        flex-wrap: wrap;
+      }
+      .modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.6);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+      }
+      .modal.open {
+        display: flex;
+      }
+      .modal .content {
+        background: #fff;
+        border-radius: 10px;
+        max-width: 90vw;
+        max-height: 90vh;
+        padding: 10px;
+        display: grid;
+        gap: 8px;
+        grid-template-rows: auto 1fr auto;
+      }
+      .modal .toolbar {
+        display: flex;
+        gap: 8px;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .modal .toolbar .left,
+      .modal .toolbar .right {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .modal .viewport {
+        overflow: auto;
+        background: #f7f9fc;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        text-align: center;
+      }
+      .modal canvas,
+      .modal img {
+        max-width: 100%;
+        max-height: 80vh;
+      }
+      .badge {
+        display: inline-block;
+        padding: 2px 8px;
+        font-size: 11px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: #fff;
+        color: #555;
+      }
+      .badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      /* OCR Results Styling */
+      .ocr-container {
+        margin-top: 16px;
+        padding: 16px;
+        background: #f0f7ff;
+        border: 2px solid #90caf9;
+        border-radius: 8px;
+        animation: slideIn 0.3s ease-out;
+      }
+      @keyframes slideIn {
+        from {
+          opacity: 0;
+          transform: translateY(-10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .ocr-container h4 {
+        margin: 0 0 12px;
+        color: #1565c0;
+        font-size: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .ocr-meta {
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 12px;
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .ocr-meta span {
+        background: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        border: 1px solid #ddd;
+      }
+      .ocr-results-list {
+        background: white;
+        border-radius: 6px;
+        overflow: hidden;
+        border: 1px solid #ddd;
+      }
+      .ocr-item {
+        padding: 10px 12px;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: background 0.2s;
+      }
+      .ocr-item:last-child {
+        border-bottom: none;
+      }
+      .ocr-item:hover {
+        background: #f8f9fa;
+      }
+      .ocr-item .region-num {
+        font-weight: 700;
+        color: #1976d2;
+        min-width: 60px;
+      }
+      .ocr-item .dimension-text {
+        flex: 1;
+        font-family: "Courier New", monospace;
+        font-size: 14px;
+        color: #333;
+      }
+      .ocr-item .status-badge {
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .ocr-item .status-badge.success {
+        background: #c8e6c9;
+        color: #2e7d32;
+      }
+      .ocr-item .status-badge.warning {
+        background: #fff9c4;
+        color: #f57f17;
+      }
+      .ocr-item .status-badge.error {
+        background: #ffcdd2;
+        color: #c62828;
+      }
+      .ocr-error {
+        background: #ffebee;
+        border-color: #ef5350;
+        color: #c62828;
+      }
+      .api-config {
+        margin-top: 12px;
+        padding: 12px;
+        background: #fff3e0;
+        border: 1px solid #ffb74d;
+        border-radius: 6px;
+        font-size: 13px;
+      }
+
+      /* Debug Images Styling */
+      .debug-images {
+        margin-top: 16px;
+        padding: 16px;
+        background: #f5f5f5;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+      }
+      .debug-images h5 {
+        margin: 0 0 12px;
+        color: #333;
+        font-size: 14px;
+      }
+      .debug-gallery {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 12px;
+      }
+      .debug-card {
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        overflow: hidden;
+        transition:
+          transform 0.2s,
+          box-shadow 0.2s;
+      }
+      .debug-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      }
+      .debug-card-header {
+        background: #2196f3;
+        color: white;
+        padding: 6px 10px;
+        font-size: 12px;
+        font-weight: 600;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .debug-card-body {
+        padding: 8px;
+      }
+      .debug-card img {
+        width: 100%;
+        height: auto;
+        display: block;
+        border: 1px solid #eee;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: opacity 0.2s;
+      }
+      .debug-card img:hover {
+        opacity: 0.8;
+      }
+      .debug-card-footer {
+        padding: 6px 10px;
+        background: #fafafa;
+        font-size: 11px;
+        color: #666;
+        border-top: 1px solid #eee;
+      }
+
+      .toggle-btn {
+        background: #4caf50;
+        color: white;
+        border: none;
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        margin-top: 8px;
+      }
+      .toggle-btn:hover {
+        background: #45a049;
+      }
+      .collapsed {
+        display: none;
+      }
+
+      /* ✅ THÊM STYLE CHO ACTION BUTTONS GROUP */
+      .ocr-actions {
+        margin-top: 12px;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>PDF Difference Highlighter + OCR Dimension Extract</h1>
+    </header>
+
+    <main>
+      <section class="panel">
+        <h2>Single comparison (select two PDFs and compare)</h2>
+        <div class="grid cols-2">
+          <div>
+            <div id="drop-old" class="dropzone">
+              <div class="label">Old PDF (drag and drop available)</div>
+              <input id="input-old" type="file" accept="application/pdf" />
+              <div class="hint">
+                Drop your file here or upload by the button
+              </div>
+              <div id="status-old" class="status"></div>
+            </div>
+          </div>
+          <div>
+            <div id="drop-new" class="dropzone">
+              <div class="label">New PDF (drag and drop supported)</div>
+              <input id="input-new" type="file" accept="application/pdf" />
+              <div class="hint">
+                Drop your file here or upload by the button
+              </div>
+              <div id="status-new" class="status"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="controls">
+          <div class="control">
+            <label for="dpi">Comparison resolution (DPI 72-300)</label>
+            <input
+              id="dpi"
+              type="range"
+              min="72"
+              max="300"
+              step="4"
+              value="144"
+            />
+          </div>
+          <div class="control">
+            <label for="threshold"
+              >Difference threshold (0 = strict ~ 255 = loose)</label
+            >
+            <input
+              id="threshold"
+              type="range"
+              min="0"
+              max="255"
+              step="1"
+              value="48"
+            />
+          </div>
+          <button id="btn-compare" class="btn primary">
+            Compare these two
+          </button>
+          <button id="btn-clear-single" class="btn">Clear</button>
+        </div>
+
+        <h3>Results (single unit comparison)</h3>
+        <div id="gallery-single" class="gallery"></div>
+      </section>
+    </main>
+
+    <div id="modal" class="modal" aria-hidden="true">
+      <div class="content">
+        <div class="toolbar">
+          <div class="left">
+            <button id="modal-rotate-left" class="btn small">
+              ↶ Rotate left 90°
+            </button>
+            <button id="modal-rotate-right" class="btn small">
+              ↷ Rotate 90° right
+            </button>
+          </div>
+          <div class="right">
+            <button id="modal-close" class="btn small danger">Close</button>
+          </div>
+        </div>
+        <div class="viewport"><canvas id="modal-canvas"></canvas></div>
+        <div class="toolbar">
+          <div class="left">
+            <span class="badge" id="modal-info">Enlarged view</span>
+          </div>
+          <div class="right"></div>
+        </div>
+      </div>
+    </div>
+
+    <script src="pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script>
+      pdfjsLib.GlobalWorkerOptions.workerSrc = "pdf.worker.min.js";
+
+      const $ = (sel) => document.querySelector(sel);
+      const API_ENDPOINT = "http://127.0.0.1:8080/api/ocr-dimensions";
+
+      // ✅ GLOBAL VARIABLE ĐỂ LƯU OCR DATA
+      let currentOCRData = null;
+
+      // Helper functions
+      function formatBytes(bytes) {
+        if (!bytes && bytes !== 0) return "";
+        const units = ["B", "KB", "MB", "GB"];
+        let i = 0,
+          v = bytes;
+        while (v >= 1024 && i < units.length - 1) {
+          v /= 1024;
+          i++;
+        }
+        return `${v.toFixed(1)} ${units[i]}`;
+      }
+
+      function readFileAsArrayBuffer(file) {
+        return new Promise((resolve, reject) => {
+          const fr = new FileReader();
+          fr.onload = () => resolve(fr.result);
+          fr.onerror = reject;
+          fr.readAsArrayBuffer(file);
+        });
+      }
+
+      async function renderPdfToCanvases(file, dpi = 144) {
+        const data = await readFileAsArrayBuffer(file);
+        const pdf = await pdfjsLib.getDocument({ data }).promise;
+        const pages = [];
+        const scale = dpi / 72;
+        for (let p = 1; p <= pdf.numPages; p++) {
+          const page = await pdf.getPage(p);
+          const viewport = page.getViewport({ scale });
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.floor(viewport.width);
+          canvas.height = Math.floor(viewport.height);
+          const ctx = canvas.getContext("2d", { willReadFrequently: true });
+          await page.render({ canvasContext: ctx, viewport }).promise;
+          pages.push(canvas);
+        }
+        return pages;
+      }
+
+      function createDiffCanvas(
+        oldCanvas,
+        newCanvas,
+        threshold = 48,
+        offsetX = -50,
+      ) {
+        const w = Math.min(oldCanvas.width, newCanvas.width);
+        const h = Math.min(oldCanvas.height, newCanvas.height);
+
+        const result = document.createElement("canvas");
+        result.width = w;
+        result.height = h;
+        const rctx = result.getContext("2d", { willReadFrequently: true });
+        rctx.drawImage(oldCanvas, 0, 0, w, h);
+
+        const octx = oldCanvas.getContext("2d", { willReadFrequently: true });
+        const nctx = newCanvas.getContext("2d", { willReadFrequently: true });
+        const od = octx.getImageData(0, 0, w, h).data;
+        const nd = nctx.getImageData(0, 0, w, h).data;
+
+        const greenPixels = [];
+        const redPixels = [];
+
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const i = (y * w + x) * 4;
+            const dr = Math.abs(od[i] - nd[i]);
+            const dg = Math.abs(od[i + 1] - nd[i + 1]);
+            const db = Math.abs(od[i + 2] - nd[i + 2]);
+            const diff = (dr + dg + db) / 3;
+
+            if (diff > threshold) {
+              const oldBrightness = (od[i] + od[i + 1] + od[i + 2]) / 3;
+              const newBrightness = (nd[i] + nd[i + 1] + nd[i + 2]) / 3;
+
+              if (newBrightness < oldBrightness) {
+                greenPixels.push({ x, y });
+              } else {
+                redPixels.push({ x, y });
+              }
+            }
+          }
+        }
+
+        const overlayRed = document.createElement("canvas");
+        overlayRed.width = w;
+        overlayRed.height = h;
+        const redCtx = overlayRed.getContext("2d");
+        const redData = redCtx.createImageData(w, h);
+        const red = redData.data;
+
+        const overlayGreen = document.createElement("canvas");
+        overlayGreen.width = w;
+        overlayGreen.height = h;
+        const greenCtx = overlayGreen.getContext("2d");
+        const greenData = greenCtx.createImageData(w, h);
+        const green = greenData.data;
+
+        redPixels.forEach(({ x, y }) => {
+          const i = (y * w + x) * 4;
+          red[i] = 255;
+          red[i + 1] = 32;
+          red[i + 2] = 32;
+          red[i + 3] = 150;
+        });
+
+        greenPixels.forEach(({ x, y }) => {
+          const newX = x + offsetX;
+          if (newX >= 0 && newX < w) {
+            const newIndex = (y * w + newX) * 4;
+            green[newIndex] = 32;
+            green[newIndex + 1] = 200;
+            green[newIndex + 2] = 32;
+            green[newIndex + 3] = 255;
+          }
+        });
+
+        redCtx.putImageData(redData, 0, 0);
+        greenCtx.putImageData(greenData, 0, 0);
+
+        rctx.drawImage(overlayRed, 0, 0);
+        rctx.drawImage(overlayGreen, 0, 0);
+
+        result.greenPixelsData = {
+          greenPixels,
+          width: w,
+          height: h,
+          newCanvas,
+          offsetX,
+        };
+
+        return result;
+      }
+
+      async function extractGreenFromPDF(diffCanvas, pdfFile, pageIndex, dpi) {
+        if (!diffCanvas.greenPixelsData) {
+          alert("No green data found!");
+          return null;
+        }
+
+        const { greenPixels, width, height } = diffCanvas.greenPixelsData;
+        console.log("Total green pixels:", greenPixels.length);
+
+        if (greenPixels.length === 0) return null;
+
+        const boxes = calculateBoundingBoxes(greenPixels, width, height);
+        console.log("Bounding boxes:", boxes);
+
+        const data = await readFileAsArrayBuffer(pdfFile);
+        const pdf = await pdfjsLib.getDocument({ data }).promise;
+        const page = await pdf.getPage(pageIndex + 1);
+        const scale = dpi / 72;
+        const viewport = page.getViewport({ scale });
+
+        const result = document.createElement("canvas");
+        result.width = width;
+        result.height = height;
+        const rctx = result.getContext("2d");
+
+        rctx.fillStyle = "#ffffff";
+        rctx.fillRect(0, 0, width, height);
+
+        const fullCanvas = document.createElement("canvas");
+        fullCanvas.width = viewport.width;
+        fullCanvas.height = viewport.height;
+        const fullCtx = fullCanvas.getContext("2d");
+
+        await page.render({ canvasContext: fullCtx, viewport }).promise;
+        console.log(
+          "NEW PDF rendered:",
+          fullCanvas.width,
+          "x",
+          fullCanvas.height,
+        );
+
+        for (const box of boxes) {
+          console.log("Cropping from NEW PDF:", box);
+          rctx.drawImage(
+            fullCanvas,
+            box.x,
+            box.y,
+            box.w,
+            box.h,
+            box.x,
+            box.y,
+            box.w,
+            box.h,
+          );
+        }
+
+        return result;
+      }
+
+      function calculateBoundingBoxes(pixels, width, height) {
+        if (pixels.length === 0) return [];
+
+        const gridSize = 50;
+        const minDensity = 20;
+        const gridMap = new Map();
+
+        pixels.forEach(({ x, y }) => {
+          const gx = Math.floor(x / gridSize);
+          const gy = Math.floor(y / gridSize);
+          const key = `${gx},${gy}`;
+
+          if (!gridMap.has(key)) {
+            gridMap.set(key, { minX: x, maxX: x, minY: y, maxY: y, count: 0 });
+          }
+
+          const cell = gridMap.get(key);
+          cell.minX = Math.min(cell.minX, x);
+          cell.maxX = Math.max(cell.maxX, x);
+          cell.minY = Math.min(cell.minY, y);
+          cell.maxY = Math.max(cell.maxY, y);
+          cell.count++;
+        });
+
+        const denseCells = new Map();
+        gridMap.forEach((cell, key) => {
+          if (cell.count >= minDensity) {
+            denseCells.set(key, cell);
+          }
+        });
+
+        console.log(
+          "Dense cells (filtered):",
+          denseCells.size,
+          "from",
+          gridMap.size,
+        );
+
+        const boxes = [];
+        const visited = new Set();
+
+        denseCells.forEach((cell, key) => {
+          if (visited.has(key)) return;
+
+          let minX = cell.minX,
+            maxX = cell.maxX;
+          let minY = cell.minY,
+            maxY = cell.maxY;
+
+          const queue = [key];
+          visited.add(key);
+
+          while (queue.length > 0) {
+            const current = queue.shift();
+            const [cx, cy] = current.split(",").map(Number);
+
+            for (let dx = -1; dx <= 1; dx++) {
+              for (let dy = -1; dy <= 1; dy++) {
+                if (dx === 0 && dy === 0) continue;
+
+                const nkey = `${cx + dx},${cy + dy}`;
+                if (!visited.has(nkey) && denseCells.has(nkey)) {
+                  visited.add(nkey);
+                  queue.push(nkey);
+
+                  const ncell = denseCells.get(nkey);
+                  minX = Math.min(minX, ncell.minX);
+                  maxX = Math.max(maxX, ncell.maxX);
+                  minY = Math.min(minY, ncell.minY);
+                  maxY = Math.max(maxY, ncell.maxY);
+                }
+              }
+            }
+          }
+
+          const paddingTop = 10;
+          const paddingBottom = 15;
+          const paddingSide = 10;
+
+          boxes.push({
+            x: Math.max(0, minX - paddingSide),
+            y: Math.max(0, minY - paddingTop),
+            w:
+              Math.min(width, maxX + paddingSide + 1) -
+              Math.max(0, minX - paddingSide),
+            h:
+              Math.min(height, maxY + paddingBottom + 1) -
+              Math.max(0, minY - paddingTop),
+          });
+        });
+
+        console.log("Final boxes:", boxes.length);
+        return boxes;
+      }
+
+      // ===================== OCR FUNCTIONS =====================
+      async function performOCR(canvas, originalFileName = "image.png") {
+        const blob = await new Promise((resolve) =>
+          canvas.toBlob(resolve, "image/png"),
+        );
+        const formData = new FormData();
+        // Gửi tên file thật để Backend trích xuất Part No
+        formData.append("image", blob, originalFileName);
+
+        const response = await fetch(API_ENDPOINT, {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error(`API Error: ${response.status}`);
+        }
+
+        return await response.json();
+      }
+
+      // ✅ HÀM MỚI: DOWNLOAD EXCEL
+      function downloadExcelReport(filteredData) {
+        const rows = filteredData.map((item, index) => ({
+          "No.": index + 1,
+          "Region ID": item.region_id,
+          Dimension: item.dimension || "",
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(rows);
+
+        // Column widths
+        ws["!cols"] = [
+          { wch: 6 }, // No.
+          { wch: 12 }, // Region ID
+          { wch: 35 }, // Dimension
+        ];
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "OCR Results");
+        XLSX.writeFile(wb, `OCR_Results_${Date.now()}.xlsx`);
+      }
+
+      function displayOCRResults(ocrData, parentCard) {
+        // Lưu data vào biến global
+        currentOCRData = ocrData;
+
+        // Xóa kết quả OCR cũ nếu có
+        const existingOCR = parentCard.querySelector(".ocr-container");
+        if (existingOCR) {
+          existingOCR.remove();
+        }
+
+        if (!ocrData.success) {
+          alert("❌ OCR failed: " + (ocrData.error || "Unknown error"));
+          return;
+        }
+
+        const container = document.createElement("div");
+        container.className = "ocr-container";
+
+        const title = document.createElement("h4");
+        title.innerHTML = "📊 OCR Dimension Analysis Results";
+        container.appendChild(title);
+
+        // ✅ HIỂN THỊ TẤT CẢ CÁC VÙNG (KHÔNG LỌC)
+        const allResults = ocrData.results.filter(
+          (r) => r.dimension && r.dimension.trim() !== "",
+        );
+
+        // Thống kê
+        const successCount = allResults.filter(
+          (r) => r.status === "success",
+        ).length;
+        const mismatchCount = allResults.filter(
+          (r) => r.status === "mismatch",
+        ).length;
+        const notFoundCount = allResults.filter(
+          (r) => r.status === "not_found",
+        ).length;
+        const noTextCount = allResults.filter(
+          (r) => r.status === "no_text_found",
+        ).length;
+
+        const meta = document.createElement("div");
+        meta.className = "ocr-meta";
+        meta.innerHTML = `
+        <span><strong>Total Regions:</strong> ${ocrData.total_regions}</span>
+        <span><strong>Detected:</strong> ${allResults.length}</span>
+        <span><strong>✓ OK:</strong> ${successCount}</span>
+        <span><strong>✗ NG:</strong> ${mismatchCount}</span>
+        <span><strong>⚠ No Data:</strong> ${notFoundCount}</span>
+        <span><strong>⚠ Empty:</strong> ${noTextCount}</span>
+    `;
+        container.appendChild(meta);
+
+        // Action buttons
+        const actionsDiv = document.createElement("div");
+        actionsDiv.className = "ocr-actions";
+
+        const btnDownloadExcel = document.createElement("button");
+        btnDownloadExcel.className = "btn small excel";
+        btnDownloadExcel.innerHTML = "📥 Download Excel Report";
+        btnDownloadExcel.onclick = () => {
+          try {
+            downloadExcelReport(allResults);
+            console.log("✅ Excel downloaded successfully");
+          } catch (err) {
+            console.error("Excel download error:", err);
+            alert("❌ Failed to download Excel: " + err.message);
+          }
+        };
+        actionsDiv.appendChild(btnDownloadExcel);
+        container.appendChild(actionsDiv);
+
+        if (ocrData.results.length === 0) {
+          container.innerHTML +=
+            '<p style="text-align:center;color:#999;">No regions found</p>';
+          parentCard.appendChild(container);
+          return;
+        }
+
+        const resultsList = document.createElement("div");
+        resultsList.className = "ocr-results-list";
+
+        // ✅ HIỂN THỊ TẤT CẢ CÁC VÙNG (bao gồm cả những vùng không có dimension)
+        ocrData.results.forEach((item) => {
+          const itemDiv = document.createElement("div");
+          itemDiv.className = "ocr-item";
+
+          const regionNum = document.createElement("span");
+          regionNum.className = "region-num";
+          regionNum.textContent = `#${item.region_id}`;
+
+          const dimensionText = document.createElement("span");
+          dimensionText.className = "dimension-text";
+          const displayText =
+            item.dimension || item.error || "[No text detected]";
+          dimensionText.textContent = displayText;
+
+          // Highlight nếu không có text
+          if (!item.dimension) {
+            dimensionText.style.color = "#999";
+            dimensionText.style.fontStyle = "italic";
+          }
+
+          const statusBadge = document.createElement("span");
+          statusBadge.className = "status-badge";
+
+          if (item.status === "success") {
+            statusBadge.className += " success";
+            statusBadge.textContent = "✓ OK";
+          } else if (item.status === "mismatch") {
+            statusBadge.className += " error";
+            statusBadge.textContent = "✗ NG";
+          } else if (item.status === "not_found") {
+            statusBadge.className += " warning";
+            statusBadge.textContent = "⚠ No Data";
+          } else if (item.status === "no_text_found") {
+            statusBadge.className += " warning";
+            statusBadge.textContent = "⚠ Empty";
+          } else {
+            statusBadge.className += " error";
+            statusBadge.textContent = "✗ Error";
+          }
+
+          if (item.validation_message) {
+            itemDiv.title = item.validation_message;
+          }
+
+          itemDiv.appendChild(regionNum);
+          itemDiv.appendChild(dimensionText);
+          itemDiv.appendChild(statusBadge);
+          resultsList.appendChild(itemDiv);
+        });
+
+        container.appendChild(resultsList);
+
+        // Debug images section - hiển thị tất cả các vùng
+        const debugSection = document.createElement("div");
+        debugSection.className = "debug-images";
+
+        const debugTitle = document.createElement("h5");
+        debugTitle.innerHTML = "🔍 Cropped Region Images (All Regions)";
+        debugSection.appendChild(debugTitle);
+
+        const toggleBtn = document.createElement("button");
+        toggleBtn.className = "toggle-btn";
+        toggleBtn.textContent = "▼ Show/Hide Debug Images";
+
+        const debugGallery = document.createElement("div");
+        debugGallery.className = "debug-gallery collapsed";
+
+        toggleBtn.addEventListener("click", () => {
+          debugGallery.classList.toggle("collapsed");
+          toggleBtn.textContent = debugGallery.classList.contains("collapsed")
+            ? "▼ Show Debug Images"
+            : "▲ Hide Debug Images";
+        });
+
+        debugSection.appendChild(toggleBtn);
+
+        // ✅ HIỂN THỊ TẤT CẢ CÁC VÙNG (có hoặc không có cropped_image)
+        ocrData.results.forEach((item) => {
+          const debugCard = document.createElement("div");
+          debugCard.className = "debug-card";
+
+          const cardHeader = document.createElement("div");
+          cardHeader.className = "debug-card-header";
+          cardHeader.innerHTML = `
+            <span>Region #${item.region_id}</span>
+            <span style="font-size:10px;">${item.status === "success" ? "✓" : item.dimension ? "⚠" : "✗"}</span>
+        `;
+          debugCard.appendChild(cardHeader);
+
+          const cardBody = document.createElement("div");
+          cardBody.className = "debug-card-body";
+
+          if (item.cropped_image) {
+            const img1 = document.createElement("img");
+            img1.src = item.cropped_image;
+            img1.alt = `Region ${item.region_id} - Cropped`;
+            img1.addEventListener("click", () =>
+              openImageModal(
+                item.cropped_image,
+                `Region #${item.region_id} - Cropped`,
+              ),
+            );
+            cardBody.appendChild(img1);
+          } else {
+            const noImg = document.createElement("div");
+            noImg.textContent = "No image available";
+            noImg.style.padding = "20px";
+            noImg.style.textAlign = "center";
+            noImg.style.color = "#999";
+            cardBody.appendChild(noImg);
+          }
+
+          debugCard.appendChild(cardBody);
+
+          const cardFooter = document.createElement("div");
+          cardFooter.className = "debug-card-footer";
+          cardFooter.textContent = item.dimension || "No text detected";
+          debugCard.appendChild(cardFooter);
+
+          debugGallery.appendChild(debugCard);
+        });
+
+        debugSection.appendChild(debugGallery);
+        container.appendChild(debugSection);
+        parentCard.appendChild(container);
+      }
+
+      // ===================== UI FUNCTIONS =====================
+      function makeResultCard({
+        title,
+        canvas,
+        meta,
+        isMainDiff = false,
+        pdfFile = null,
+        pageIndex = 0,
+        dpi = 144,
+      }) {
+        const card = document.createElement("div");
+        card.className = "card";
+
+        const head = document.createElement("header");
+        const h3 = document.createElement("h3");
+        h3.textContent = title;
+        head.appendChild(h3);
+
+        const body = document.createElement("div");
+        body.className = "canvas-wrap";
+        canvas.style.transformOrigin = "center center";
+        canvas.dataset.rotation = "0";
+        body.appendChild(canvas);
+
+        const foot = document.createElement("footer");
+        const btnRotateL = document.createElement("button");
+        btnRotateL.className = "btn small";
+        btnRotateL.textContent = "↶ 90°";
+        btnRotateL.addEventListener("click", () => rotateCanvas(canvas, -90));
+
+        const btnRotateR = document.createElement("button");
+        btnRotateR.className = "btn small";
+        btnRotateR.textContent = "↷ 90°";
+        btnRotateR.addEventListener("click", () => rotateCanvas(canvas, +90));
+
+        foot.appendChild(btnRotateL);
+        foot.appendChild(btnRotateR);
+
+        if (isMainDiff && canvas.greenPixelsData && pdfFile) {
+          let lastGreenCanvas = null;
+
+          const btnExtractGreen = document.createElement("button");
+          btnExtractGreen.className = "btn small success";
+          btnExtractGreen.textContent = "🟢 Extract Green";
+          btnExtractGreen.addEventListener("click", async () => {
+            btnExtractGreen.disabled = true;
+            btnExtractGreen.textContent = "⏳ Extracting...";
+
+            const greenCanvas = await extractGreenFromPDF(
+              canvas,
+              pdfFile,
+              pageIndex,
+              dpi,
+            );
+
+            btnExtractGreen.disabled = false;
+            btnExtractGreen.textContent = "🟢 Extract Green";
+
+            if (greenCanvas) {
+              lastGreenCanvas = greenCanvas;
+              // ✅ LƯU CANVAS VÀO CARD
+              card._lastGreenCanvas = greenCanvas;
+
+              const greenCard = makeResultCard({
+                title: `${title} - Green Only (From PDF)`,
+                canvas: greenCanvas,
+                meta: {
+                  info: `Green extraction from PDF: ${meta?.info || ""}`,
+                },
+                isMainDiff: false,
+              });
+              card.insertAdjacentElement("afterend", greenCard);
+            }
+          });
+          foot.appendChild(btnExtractGreen);
+
+          // ===== NÚT OCR =====
+          const btnOCR = document.createElement("button");
+          btnOCR.className = "btn small primary";
+          btnOCR.textContent = "📝 OCR Dimensions";
+          btnOCR.addEventListener("click", async () => {
+            if (!lastGreenCanvas) {
+              alert("⚠️ Vui lòng Extract Green trước khi OCR!");
+              return;
+            }
+
+            btnOCR.disabled = true;
+            btnOCR.textContent = "⏳ OCR Processing...";
+
+            try {
+              // ✅ TRUYỀN TÊN FILE PDF THẬT
+              const ocrResults = await performOCR(
+                lastGreenCanvas,
+                pdfFile.name,
+              );
+              btnOCR.disabled = false;
+              btnOCR.textContent = "📝 OCR Dimensions";
+
+              if (ocrResults) {
+                displayOCRResults(ocrResults, card);
+              }
+            } catch (err) {
+              btnOCR.disabled = false;
+              btnOCR.textContent = "📝 OCR Dimensions";
+              console.error("OCR Error:", err);
+              alert("❌ Lỗi OCR: " + err.message);
+            }
+          });
+          foot.appendChild(btnOCR);
+        }
+
+        canvas.addEventListener("click", () =>
+          openModalWithCanvas(canvas, meta),
+        );
+
+        card.appendChild(head);
+        card.appendChild(body);
+        card.appendChild(foot);
+        return card;
+      }
+
+      function rotateCanvas(canvas, deltaDeg) {
+        const current = parseInt(canvas.dataset.rotation || "0", 10);
+        const next = (((current + deltaDeg) % 360) + 360) % 360;
+        canvas.dataset.rotation = String(next);
+        canvas.style.transform = `rotate(${next}deg)`;
+      }
+
+      const modal = $("#modal");
+      const modalCanvas = $("#modal-canvas");
+      const modalInfo = $("#modal-info");
+      let modalRotation = 0;
+
+      function openModalWithCanvas(srcCanvas, meta = {}) {
+        modalCanvas.width = srcCanvas.width;
+        modalCanvas.height = srcCanvas.height;
+        const mctx = modalCanvas.getContext("2d");
+        mctx.clearRect(0, 0, modalCanvas.width, modalCanvas.height);
+        mctx.drawImage(srcCanvas, 0, 0);
+        modalRotation = 0;
+        modalCanvas.style.transformOrigin = "center center";
+        modalCanvas.style.transform = "rotate(0deg)";
+        modalInfo.textContent = meta?.info || "Enlarged view";
+        modal.classList.add("open");
+        modal.setAttribute("aria-hidden", "false");
+      }
+
+      function closeModal() {
+        modal.classList.remove("open");
+        modal.setAttribute("aria-hidden", "true");
+      }
+
+      $("#modal-close").addEventListener("click", closeModal);
+      $("#modal-rotate-left").addEventListener("click", () => {
+        modalRotation = (((modalRotation - 90) % 360) + 360) % 360;
+        modalCanvas.style.transform = `rotate(${modalRotation}deg)`;
+      });
+      $("#modal-rotate-right").addEventListener("click", () => {
+        modalRotation = (((modalRotation + 90) % 360) + 360) % 360;
+        modalCanvas.style.transform = `rotate(${modalRotation}deg)`;
+      });
+      modal.addEventListener("click", (e) => {
+        if (e.target === modal) closeModal();
+      });
+
+      function bindDropzone(dropEl, onFiles) {
+        dropEl.addEventListener("dragenter", (e) => {
+          e.preventDefault();
+          dropEl.classList.add("dragover");
+        });
+        dropEl.addEventListener("dragover", (e) => {
+          e.preventDefault();
+          dropEl.classList.add("dragover");
+        });
+        dropEl.addEventListener("dragleave", () => {
+          dropEl.classList.remove("dragover");
+        });
+        dropEl.addEventListener("drop", async (e) => {
+          e.preventDefault();
+          dropEl.classList.remove("dragover");
+          const files = Array.from(e.dataTransfer.files);
+          onFiles(files);
+        });
+      }
+
+      let singleOldFile = null;
+      let singleNewFile = null;
+
+      bindDropzone($("#drop-old"), (files) => {
+        const pdf = files.find(
+          (f) =>
+            f.type === "application/pdf" ||
+            f.name.toLowerCase().endsWith(".pdf"),
+        );
+        if (pdf) {
+          singleOldFile = pdf;
+          $("#status-old").textContent =
+            `Choice: ${pdf.name} (${formatBytes(pdf.size)})`;
+        } else {
+          $("#status-old").textContent = "PDF not found";
+        }
+      });
+
+      bindDropzone($("#drop-new"), (files) => {
+        const pdf = files.find(
+          (f) =>
+            f.type === "application/pdf" ||
+            f.name.toLowerCase().endsWith(".pdf"),
+        );
+        if (pdf) {
+          singleNewFile = pdf;
+          $("#status-new").textContent =
+            `Choice: ${pdf.name} (${formatBytes(pdf.size)})`;
+        } else {
+          $("#status-new").textContent = "PDF not found";
+        }
+      });
+
+      $("#input-old").addEventListener("change", (e) => {
+        const f = e.target.files?.[0];
+        if (f) {
+          singleOldFile = f;
+          $("#status-old").textContent =
+            `Choice: ${f.name} (${formatBytes(f.size)})`;
+        }
+      });
+
+      $("#input-new").addEventListener("change", (e) => {
+        const f = e.target.files?.[0];
+        if (f) {
+          singleNewFile = f;
+          $("#status-new").textContent =
+            `Choice: ${f.name} (${formatBytes(f.size)})`;
+        }
+      });
+
+      $("#btn-clear-single").addEventListener("click", () => {
+        singleOldFile = null;
+        singleNewFile = null;
+        $("#input-old").value = "";
+        $("#input-new").value = "";
+        $("#status-old").textContent = "";
+        $("#status-new").textContent = "";
+        $("#gallery-single").innerHTML = "";
+        currentOCRData = null;
+      });
+
+      $("#btn-compare").addEventListener("click", async () => {
+        if (!singleOldFile || !singleNewFile) {
+          alert("Please select both the old and new PDFs.");
+          return;
+        }
+        const dpi = parseInt($("#dpi").value, 10);
+        const threshold = parseInt($("#threshold").value, 10);
+        $("#gallery-single").innerHTML = "";
+        currentOCRData = null;
+
+        const [oldCanvases, newCanvases] = await Promise.all([
+          renderPdfToCanvases(singleOldFile, dpi),
+          renderPdfToCanvases(singleNewFile, dpi),
+        ]);
+
+        const pages = Math.min(oldCanvases.length, newCanvases.length);
+        for (let i = 0; i < pages; i++) {
+          const diff = createDiffCanvas(
+            oldCanvases[i],
+            newCanvases[i],
+            threshold,
+          );
+          const card = makeResultCard({
+            title: `Page ${i + 1} / ${pages}`,
+            canvas: diff,
+            meta: {
+              info: `${singleOldFile.name} ↔ ${singleNewFile.name} | DPI:${dpi} | Threshold:${threshold}`,
+            },
+            isMainDiff: true,
+            pdfFile: singleNewFile,
+            pageIndex: i,
+            dpi: dpi,
+          });
+          $("#gallery-single").appendChild(card);
+        }
+
+        if (oldCanvases.length !== newCanvases.length) {
+          const warn = document.createElement("div");
+          warn.className = "status";
+          warn.textContent = `※ Page count mismatch (Old:${oldCanvases.length} / New:${newCanvases.length}). Compared ${pages} common pages only.`;
+          $("#gallery-single").prepend(warn);
+        }
+      });
+    </script>
+  </body>
+</html>
